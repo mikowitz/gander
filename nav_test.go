@@ -4,6 +4,7 @@
 package gander_test
 
 import (
+	"log"
 	"testing"
 
 	"github.com/mikowitz/gander"
@@ -140,5 +141,209 @@ func TestUp(t *testing.T) {
 		focused3, ok := gander.Focus(z).(ListBranch)
 		require.True(t, ok)
 		assert.True(t, focused3.Equal(root))
+	})
+}
+
+func TestRight(t *testing.T) {
+	t.Run("Down then Right focuses the second child", func(t *testing.T) {
+		a := StringLeaf{Value: "a"}
+		b := StringLeaf{Value: "b"}
+		c := StringLeaf{Value: "c"}
+		z := gander.NewZipper(ListBranch{Items: []gander.Node{a, b, c}})
+
+		z, ok := gander.Down(z)
+		require.True(t, ok)
+
+		z, ok = gander.Right(z)
+		require.True(t, ok)
+
+		focused, ok := gander.Focus(z).(StringLeaf)
+		require.True(t, ok)
+		assert.True(t, focused.Equal(b))
+	})
+
+	t.Run("returns false when navigation is not possible", func(t *testing.T) {
+		tests := []struct {
+			name  string
+			setup func() gander.Zipper
+		}{
+			{
+				name: "at rightmost sibling",
+				setup: func() gander.Zipper {
+					a := StringLeaf{Value: "a"}
+					b := StringLeaf{Value: "b"}
+					z := gander.NewZipper(ListBranch{Items: []gander.Node{a, b}})
+					z, _ = gander.Down(z)
+					z, _ = gander.Right(z) // now at b, the rightmost
+					return z
+				},
+			},
+			{
+				name: "at root",
+				setup: func() gander.Zipper {
+					return gander.NewZipper(ListBranch{Items: []gander.Node{StringLeaf{Value: "a"}}})
+				},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				z := tc.setup()
+				_, ok := gander.Right(z)
+				assert.False(t, ok)
+			})
+		}
+	})
+}
+
+func TestLeft(t *testing.T) {
+	t.Run("Right then Left round-trips to the same node", func(t *testing.T) {
+		a := StringLeaf{Value: "a"}
+		b := StringLeaf{Value: "b"}
+		z := gander.NewZipper(ListBranch{Items: []gander.Node{a, b}})
+
+		z, ok := gander.Down(z)
+		require.True(t, ok)
+
+		z, ok = gander.Right(z)
+		require.True(t, ok)
+
+		z, ok = gander.Left(z)
+		require.True(t, ok)
+
+		focused, ok := gander.Focus(z).(StringLeaf)
+		require.True(t, ok)
+		assert.True(t, focused.Equal(a))
+	})
+
+	t.Run("returns false when navigation is not possible", func(t *testing.T) {
+		tests := []struct {
+			name  string
+			setup func() gander.Zipper
+		}{
+			{
+				name: "at leftmost sibling",
+				setup: func() gander.Zipper {
+					a := StringLeaf{Value: "a"}
+					b := StringLeaf{Value: "b"}
+					z := gander.NewZipper(ListBranch{Items: []gander.Node{a, b}})
+					z, _ = gander.Down(z) // now at a, the leftmost
+					return z
+				},
+			},
+			{
+				name: "at root",
+				setup: func() gander.Zipper {
+					return gander.NewZipper(ListBranch{Items: []gander.Node{StringLeaf{Value: "a"}}})
+				},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				z := tc.setup()
+				_, ok := gander.Left(z)
+				assert.False(t, ok)
+			})
+		}
+	})
+}
+
+func TestLeftmost(t *testing.T) {
+	t.Run("moves to the first sibling from any position", func(t *testing.T) {
+		a := StringLeaf{Value: "a"}
+		b := StringLeaf{Value: "b"}
+		c := StringLeaf{Value: "c"}
+		z := gander.NewZipper(ListBranch{Items: []gander.Node{a, b, c}})
+
+		// Navigate to the rightmost child (c) and call Leftmost.
+		z, ok := gander.Down(z)
+		require.True(t, ok)
+		z, ok = gander.Right(z)
+		require.True(t, ok)
+		z, ok = gander.Right(z)
+		require.True(t, ok)
+
+		focused, ok := gander.Focus(z).(StringLeaf)
+		require.True(t, ok)
+		assert.True(t, focused.Equal(c), "setup: should be focused on c")
+
+		z, ok = gander.Leftmost(z)
+		require.True(t, ok)
+
+		focused, ok = gander.Focus(z).(StringLeaf)
+		require.True(t, ok)
+		assert.True(t, focused.Equal(a))
+	})
+
+	t.Run("returns self when already at leftmost", func(t *testing.T) {
+		a := StringLeaf{Value: "a"}
+		b := StringLeaf{Value: "b"}
+		z := gander.NewZipper(ListBranch{Items: []gander.Node{a, b}})
+
+		z, ok := gander.Down(z) // focused on a (leftmost)
+		require.True(t, ok)
+
+		z, ok = gander.Leftmost(z)
+		require.True(t, ok)
+
+		focused, ok := gander.Focus(z).(StringLeaf)
+		require.True(t, ok)
+		assert.True(t, focused.Equal(a))
+	})
+
+	t.Run("returns false at root", func(t *testing.T) {
+		z := gander.NewZipper(ListBranch{Items: []gander.Node{StringLeaf{Value: "a"}}})
+		_, ok := gander.Leftmost(z)
+		assert.False(t, ok)
+	})
+}
+
+func TestRightmost(t *testing.T) {
+	t.Run("moves to the last sibling from any position", func(t *testing.T) {
+		a := StringLeaf{Value: "a"}
+		b := StringLeaf{Value: "b"}
+		c := StringLeaf{Value: "c"}
+		z := gander.NewZipper(ListBranch{Items: []gander.Node{a, b, c}})
+
+		// Navigate to the leftmost child (a) and call Rightmost.
+		z, ok := gander.Down(z)
+		require.True(t, ok)
+
+		focused, ok := gander.Focus(z).(StringLeaf)
+		require.True(t, ok)
+		assert.True(t, focused.Equal(a), "setup: should be focused on a")
+
+		z, ok = gander.Rightmost(z)
+		require.True(t, ok)
+
+		focused, ok = gander.Focus(z).(StringLeaf)
+		log.Println(focused, ok)
+		require.True(t, ok)
+		assert.True(t, focused.Equal(c))
+	})
+
+	t.Run("returns self when already at rightmost", func(t *testing.T) {
+		a := StringLeaf{Value: "a"}
+		b := StringLeaf{Value: "b"}
+		z := gander.NewZipper(ListBranch{Items: []gander.Node{a, b}})
+
+		z, ok := gander.Down(z)
+		require.True(t, ok)
+		z, ok = gander.Right(z) // focused on b (rightmost)
+		require.True(t, ok)
+
+		z, ok = gander.Rightmost(z)
+		require.True(t, ok)
+
+		focused, ok := gander.Focus(z).(StringLeaf)
+		require.True(t, ok)
+		assert.True(t, focused.Equal(b))
+	})
+
+	t.Run("returns false at root", func(t *testing.T) {
+		z := gander.NewZipper(ListBranch{Items: []gander.Node{StringLeaf{Value: "a"}}})
+		_, ok := gander.Rightmost(z)
+		assert.False(t, ok)
 	})
 }

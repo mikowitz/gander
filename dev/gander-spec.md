@@ -144,8 +144,8 @@ All return `(Zipper, bool)` where `false` means the move is not possible.
 | `Up` | `(Zipper) (Zipper, bool)` | Move to parent, reconstructing it if changes were made below. False if at root. |
 | `Left` | `(Zipper) (Zipper, bool)` | Move to left sibling. False if leftmost or at root. |
 | `Right` | `(Zipper) (Zipper, bool)` | Move to right sibling. False if rightmost or at root. |
-| `Leftmost` | `(Zipper) Zipper` | Move to leftmost sibling (returns self if already there or at root). |
-| `Rightmost` | `(Zipper) Zipper` | Move to rightmost sibling (returns self if already there or at root). |
+| `Leftmost` | `(Zipper) (Zipper, bool)` | Move to leftmost sibling. Returns self and true if already there; false at root. |
+| `Rightmost` | `(Zipper) (Zipper, bool)` | Move to rightmost sibling. Returns self and true if already there; false at root. |
 | `Root` | `(Zipper) (Zipper, bool)` | Zip all the way up, applying changes, returning a Zipper at root. If called on an end sentinel, returns a new root Zipper wrapping the sentinel's focus node directly (with nil path), since the end sentinel's focus already holds the fully-accumulated root with all edits applied. |
 
 ### 4.3 Depth-First Traversal
@@ -291,8 +291,8 @@ Implement:
 Implement:
 - `Left(Zipper) (Zipper, bool)`
 - `Right(Zipper) (Zipper, bool)`
-- `Leftmost(Zipper) Zipper`
-- `Rightmost(Zipper) Zipper`
+- `Leftmost(Zipper) (Zipper, bool)`
+- `Rightmost(Zipper) (Zipper, bool)`
 
 **Tests:**
 - `Down` then `Right` focuses second child
@@ -302,7 +302,7 @@ Implement:
 - `Right` then `Left` round-trips
 - `Leftmost` from any sibling goes to first
 - `Rightmost` from any sibling goes to last
-- `Leftmost`/`Rightmost` at root returns self
+- `Leftmost`/`Rightmost` at root returns false
 
 ### Step 4: Path, Lefts, Rights Accessors
 
@@ -403,7 +403,7 @@ Remove(loc):
     // Descend to rightmost descendant of pred
     for IsBranch(pred) && len(Children(pred)) > 0:
       pred, _ = Down(pred)
-      pred    = Rightmost(pred)
+      pred, _ = Rightmost(pred)
     return pred, true
 
   else:
@@ -587,7 +587,7 @@ Prev(loc):
     // Descend to rightmost descendant of sibling
     for IsBranch(sibling) && len(Children(sibling)) > 0:
       sibling, _ = Down(sibling)
-      sibling    = Rightmost(sibling)
+      sibling, _ = Rightmost(sibling)
     return sibling, true
 
   else:

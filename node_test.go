@@ -75,29 +75,35 @@ var _ gander.Branch = (*ListBranch)(nil)
 
 func TestNew(t *testing.T) {
 	t.Run("returns a Zipper with the root node as its focus", func(t *testing.T) {
+		asrt := assert.New(t)
+		req := require.New(t)
+
 		root := StringLeaf{Value: "root"}
 		z := gander.NewZipper(root)
 
 		node := gander.Focus(z)
-		require.NotNil(t, node)
+		req.NotNil(node)
 
 		leaf, ok := node.(StringLeaf)
-		require.True(t, ok, "focused node should be a StringLeaf")
-		assert.Equal(t, "root", leaf.Value)
+		req.True(ok, "focused node should be a StringLeaf")
+		asrt.Equal("root", leaf.Value)
 	})
 }
 
 func TestFocus(t *testing.T) {
 	t.Run("returns the focused node", func(t *testing.T) {
+		asrt := assert.New(t)
+		req := require.New(t)
+
 		leaf := StringLeaf{Value: "hello"}
 		z := gander.NewZipper(leaf)
 
 		node := gander.Focus(z)
-		require.NotNil(t, node)
+		req.NotNil(node)
 
 		result, ok := node.(StringLeaf)
-		require.True(t, ok, "focused node should be a StringLeaf")
-		assert.True(t, result.Equal(leaf))
+		req.True(ok, "focused node should be a StringLeaf")
+		asrt.True(result.Equal(leaf))
 	})
 }
 
@@ -126,47 +132,56 @@ func TestIsBranch(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			asrt := assert.New(t)
+
 			z := gander.NewZipper(tc.node)
-			assert.Equal(t, tc.expected, gander.IsBranch(z))
+			asrt.Equal(tc.expected, gander.IsBranch(z))
 		})
 	}
 }
 
 func TestChildren(t *testing.T) {
 	t.Run("returns nil and false for a leaf node", func(t *testing.T) {
+		asrt := assert.New(t)
+
 		leaf := StringLeaf{Value: "leaf"}
 		z := gander.NewZipper(leaf)
 
 		children, ok := gander.Children(z)
-		assert.False(t, ok, "Children on a leaf should return false")
-		assert.Nil(t, children, "Children on a leaf should return nil slice")
+		asrt.False(ok, "Children on a leaf should return false")
+		asrt.Nil(children, "Children on a leaf should return nil slice")
 	})
 
 	t.Run("returns empty slice and true for an empty branch", func(t *testing.T) {
+		asrt := assert.New(t)
+
 		branch := ListBranch{Items: []gander.Node{}}
 		z := gander.NewZipper(branch)
 
 		children, ok := gander.Children(z)
-		assert.True(t, ok, "Children on an empty branch should return true")
-		assert.Empty(t, children, "Children on an empty branch should return an empty slice")
+		asrt.True(ok, "Children on an empty branch should return true")
+		asrt.Empty(children, "Children on an empty branch should return an empty slice")
 	})
 
 	t.Run("returns the children and true for a populated branch", func(t *testing.T) {
+		asrt := assert.New(t)
+		req := require.New(t)
+
 		childA := StringLeaf{Value: "a"}
 		childB := StringLeaf{Value: "b"}
 		branch := ListBranch{Items: []gander.Node{childA, childB}}
 		z := gander.NewZipper(branch)
 
 		children, ok := gander.Children(z)
-		assert.True(t, ok, "Children on a populated branch should return true")
-		require.Len(t, children, 2, "should have exactly two children")
+		asrt.True(ok, "Children on a populated branch should return true")
+		req.Len(children, 2, "should have exactly two children")
 
 		gotA, ok := children[0].(StringLeaf)
-		require.True(t, ok, "first child should be a StringLeaf")
-		assert.True(t, gotA.Equal(childA))
+		req.True(ok, "first child should be a StringLeaf")
+		asrt.True(gotA.Equal(childA))
 
 		gotB, ok := children[1].(StringLeaf)
-		require.True(t, ok, "second child should be a StringLeaf")
-		assert.True(t, gotB.Equal(childB))
+		req.True(ok, "second child should be a StringLeaf")
+		asrt.True(gotB.Equal(childB))
 	})
 }

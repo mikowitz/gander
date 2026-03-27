@@ -55,3 +55,44 @@ func Children(z Zipper) ([]Node, bool) {
 		return nil, false
 	}
 }
+
+func Down(z Zipper) (Zipper, bool) {
+	if IsBranch(z) {
+		if children, ok := Children(z); ok {
+			if len(children) == 0 {
+				return z, false
+			}
+			pnodes := []Node{z.focus}
+			if z.path != nil {
+				pnodes = append(pnodes, z.path.pnodes...)
+			}
+			return Zipper{
+				focus: children[0],
+				path: &path{
+					right:  children[1:],
+					parent: z.path,
+					pnodes: pnodes,
+				},
+			}, true
+		}
+		return z, false
+	} else {
+		return z, false
+	}
+}
+
+func Up(z Zipper) (Zipper, bool) {
+	if z.path == nil {
+		return z, false
+	}
+
+	focus := z.path.pnodes[0]
+	if z.path.changed {
+		children := append(append(z.path.left, z.focus), z.path.right...)
+		focus = focus.(Branch).WithChildren(children)
+	}
+	return Zipper{
+		focus: focus,
+		path:  z.path.parent,
+	}, true
+}

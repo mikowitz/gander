@@ -10,7 +10,8 @@
 
 - **Immutable:** All operations return new values; nothing is mutated in place.
 - **Interface-driven:** Users implement `Node` (and either `Leaf` or `Branch`) on their own types to get a zipper for free.
-- **Idiomatic Go:** Navigation returns `(Loc, bool)` — `false` means "can't go there" (at top, at leftmost, no children, etc.). No panics for normal navigation failures. Edit operations that are structurally invalid (e.g., `InsertLeft` at root) also return `(Loc, bool)`.
+- **Idiomatic Go:** Navigation returns `(Zipper, bool)` — `false` means "can't go there" (at top, at leftmost, no children, etc.). No panics for normal navigation failures. Edit operations that are structurally invalid (e.g., `InsertLeft` at root) also return `(Zipper, bool)`.
+- **Simplicity over deep-tree performance:** `path.pnodes` stores the full ancestor list at every level as a plain Go slice. Because slices must be copied on each navigation step (no structural sharing), navigating to depth N allocates O(N²) total memory across the path chain. Clojure's persistent vectors avoid this cost; Go does not have an equivalent. This is a conscious trade-off: `Path()` is O(1) with this design, and real-world trees (ASTs, file systems, XML) are rarely deeper than a few dozen levels, so the quadratic cost is unlikely to be observable in practice.
 
 ---
 
@@ -91,14 +92,14 @@ loc.path   = &path{
 }
 ```
 
-When `Up` is called from `Y`, it uses `pnodes[last]` (which is `A`) to call `A.MakeNode([X, Y])`, then returns a `Loc` with the reconstructed `A` as focus and `parent` as the new path.
+When `Up` is called from `Y`, it uses `pnodes[last]` (which is `A`) to call `A.MakeNode([X, Y])`, then returns a `Zipper` with the reconstructed `A` as focus and `parent` as the new path.
 
-### 2.3 Loc (the zipper location)
+### 2.3 Zipper
 
 ```go
-// Loc is a location in the zipper: a focused node plus its surrounding context.
+// Zipper is a location in the zipper: a focused node plus its surrounding context.
 // The zero value is not valid; create via New().
-type Loc struct {
+type Zipper struct {
     focus Node
     path  *path  // nil means root with no navigation history
     end   bool   // true if this is the end sentinel from depth-first traversal
@@ -111,69 +112,69 @@ type Loc struct {
 
 ```go
 // New creates a zipper rooted at the given node.
-func New(root Node) Loc
+func New(root Node) Zipper
 ```
 
-Returns `Loc{focus: root, path: nil}`.
+Returns `Zipper{focus: root, path: nil}`.
 
 ---
 
 ## 4. API Surface
 
-All functions are package-level, taking `Loc` as first argument (value receiver style, since `Loc` is immutable).
+All functions are package-level, taking `Zipper` as first argument (value receiver style, since `Zipper` is immutable).
 
 ### 4.1 Accessors
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `NodeAt` | `(Loc) Node` | Returns the node at the current focus. |
-| `IsBranch` | `(Loc) bool` | True if the focused node implements `Branch`. |
-| `Children` | `(Loc) ([]Node, bool)` | Children of the focused node. False if not a branch. |
-| `Path` | `(Loc) []Node` | Ancestor nodes from root down to (but not including) current focus. |
-| `Lefts` | `(Loc) []Node` | Left siblings in tree order (leftmost first). Note: internally stored reversed; return in natural order. |
-| `Rights` | `(Loc) []Node` | Right siblings in tree order. |
+| `Focus` | `(Zipper) Node` | Returns the node at the current focus. |
+| `IsBranch` | `(Zipper) bool` | True if the focused node implements `Branch`. |
+| `Children` | `(Zipper) ([]Node, bool)` | Children of the focused node. False if not a branch. |
+| `Path` | `(Zipper) []Node` | Ancestor nodes from root down to (but not including) current focus. |
+| `Lefts` | `(Zipper) []Node` | Left siblings in tree order (leftmost first). Note: internally stored reversed; return in natural order. |
+| `Rights` | `(Zipper) []Node` | Right siblings in tree order. |
 
 ### 4.2 Navigation
 
-All return `(Loc, bool)` where `false` means the move is not possible.
+All return `(Zipper, bool)` where `false` means the move is not possible.
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `Down` | `(Loc) (Loc, bool)` | Move to the leftmost child. False if leaf or empty branch. |
-| `Up` | `(Loc) (Loc, bool)` | Move to parent, reconstructing it if changes were made below. False if at root. |
-| `Left` | `(Loc) (Loc, bool)` | Move to left sibling. False if leftmost or at root. |
-| `Right` | `(Loc) (Loc, bool)` | Move to right sibling. False if rightmost or at root. |
-| `Leftmost` | `(Loc) Loc` | Move to leftmost sibling (returns self if already there or at root). |
-| `Rightmost` | `(Loc) Loc` | Move to rightmost sibling (returns self if already there or at root). |
-| `Root` | `(Loc) (Loc, bool)` | Zip all the way up, applying changes, returning a Loc at root. False if at end sentinel. |
+| `Down` | `(Zipper) (Zipper, bool)` | Move to the leftmost child. False if leaf or empty branch. |
+| `Up` | `(Zipper) (Zipper, bool)` | Move to parent, reconstructing it if changes were made below. False if at root. |
+| `Left` | `(Zipper) (Zipper, bool)` | Move to left sibling. False if leftmost or at root. |
+| `Right` | `(Zipper) (Zipper, bool)` | Move to right sibling. False if rightmost or at root. |
+| `Leftmost` | `(Zipper) Zipper` | Move to leftmost sibling (returns self if already there or at root). |
+| `Rightmost` | `(Zipper) Zipper` | Move to rightmost sibling (returns self if already there or at root). |
+| `Root` | `(Zipper) (Zipper, bool)` | Zip all the way up, applying changes, returning a Zipper at root. If called on an end sentinel, returns a new root Zipper wrapping the sentinel's focus node directly (with nil path), since the end sentinel's focus already holds the fully-accumulated root with all edits applied. |
 
 ### 4.3 Depth-First Traversal
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `Next` | `(Loc) Loc` | Move to the next location in depth-first order. Returns end sentinel when exhausted. |
-| `Prev` | `(Loc) (Loc, bool)` | Move to the previous location in depth-first order. False if at root. |
-| `IsEnd` | `(Loc) bool` | True if this Loc is the end sentinel. |
+| `Next` | `(Zipper) Zipper` | Move to the next location in depth-first order. Returns end sentinel when exhausted. |
+| `Prev` | `(Zipper) (Zipper, bool)` | Move to the previous location in depth-first order. False if at root. |
+| `IsEnd` | `(Zipper) bool` | True if this Zipper is the end sentinel. |
 
 ### 4.4 Editing
 
-All editing operations return `(Loc, bool)`. False if the operation is structurally invalid (e.g., insert at root).
+All editing operations return `(Zipper, bool)`. False if the operation is structurally invalid (e.g., insert at root).
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `Replace` | `(Loc, Node) (Loc, bool)` | Replace the focused node. False if at end sentinel. |
-| `Edit` | `(Loc, func(Node) Node) (Loc, bool)` | Apply function to the focused node and replace. False if at end sentinel. |
-| `InsertLeft` | `(Loc, Node) (Loc, bool)` | Insert a node as the left sibling of focus. False at root. |
-| `InsertRight` | `(Loc, Node) (Loc, bool)` | Insert a node as the right sibling of focus. False at root. |
-| `InsertChild` | `(Loc, Node) (Loc, bool)` | Insert as leftmost child of focus. False if not a branch. |
-| `AppendChild` | `(Loc, Node) (Loc, bool)` | Insert as rightmost child of focus. False if not a branch. |
-| `Remove` | `(Loc) (Loc, bool)` | Remove focused node, moving to what would have preceded it in depth-first walk. False at root. |
+| `Replace` | `(Zipper, Node) (Zipper, bool)` | Replace the focused node. False if at end sentinel. |
+| `Edit` | `(Zipper, func(Node) Node) (Zipper, bool)` | Apply function to the focused node and replace. False if at end sentinel. |
+| `InsertLeft` | `(Zipper, Node) (Zipper, bool)` | Insert a node as the left sibling of focus. False at root. |
+| `InsertRight` | `(Zipper, Node) (Zipper, bool)` | Insert a node as the right sibling of focus. False at root. |
+| `InsertChild` | `(Zipper, Node) (Zipper, bool)` | Insert as leftmost child of focus. False if not a branch. |
+| `AppendChild` | `(Zipper, Node) (Zipper, bool)` | Insert as rightmost child of focus. False if not a branch. |
+| `Remove` | `(Zipper) (Zipper, bool)` | Remove focused node, moving to what would have preceded it in depth-first walk. False at root. |
 
 ---
 
 ## 5. Immutability Contract
 
-- `Loc` is a value type. All operations return new `Loc` values.
+- `Zipper` is a value type. All operations return new `Zipper` values.
 - `path` is a pointer type for structural sharing, but is never mutated after creation. New paths are always fresh allocations with copied/new slices.
 - Slice fields (`left`, `right`, `pnodes`) must be copied on modification, never appended in place (append can mutate shared backing arrays).
 
@@ -183,18 +184,18 @@ All editing operations return `(Loc, bool)`. False if the operation is structura
 
 Each step is a self-contained unit with tests written first (TDD red-green-refactor). Each step should be under ~200 lines of implementation code.
 
-### Step 1: Interfaces and Loc Type
+### Step 1: Interfaces and Zipper Type
 
-**Files:** `node.go`, `loc.go`, `node_test.go`
+**Files:** `node.go`, `zipper.go`, `node_test.go`
 
 Implement:
 - `Node`, `Leaf`, `Branch` interfaces
 - `BaseNode` embed helper
-- `Loc` struct (unexported `path` struct)
-- `New(root Node) Loc`
-- `NodeAt(Loc) Node`
-- `IsBranch(Loc) bool`
-- `Children(Loc) ([]Node, bool)`
+- `Zipper` struct (unexported `path` struct)
+- `New(root Node) Zipper`
+- `Focus(Zipper) Node`
+- `IsBranch(Zipper) bool`
+- `Children(Zipper) ([]Node, bool)`
 
 **Test types for this step and all subsequent steps:**
 
@@ -258,8 +259,8 @@ func (cb CountingBranch) Equal(other gander.Node) bool {
 **Note on equality in tests:** `ListBranch` and `CountingBranch` contain slice fields and are not comparable with `==` — doing so panics at runtime. Always use the `.Equal` method for structural equality assertions. `StringLeaf` supports `==` directly but `.Equal` is preferred for consistency.
 
 **Tests:**
-- `New` returns a `Loc` with the root as focus
-- `NodeAt` returns the focused node
+- `New` returns a `Zipper` with the root as focus
+- `Focus` returns the focused node
 - `IsBranch` returns true for `ListBranch`, false for `StringLeaf`
 - `Children` returns children of a branch, `false` for a leaf
 - `Children` returns empty slice and `true` for an empty branch
@@ -269,8 +270,8 @@ func (cb CountingBranch) Equal(other gander.Node) bool {
 **Files:** `nav.go`, `nav_test.go`
 
 Implement:
-- `Down(Loc) (Loc, bool)`
-- `Up(Loc) (Loc, bool)`
+- `Down(Zipper) (Zipper, bool)`
+- `Up(Zipper) (Zipper, bool)`
 
 **Tests:**
 - `Down` on a branch with children focuses leftmost child
@@ -278,7 +279,7 @@ Implement:
 - `Down` on an empty branch returns false
 - `Up` from a child returns to the parent
 - `Up` from root returns false
-- `Down` then `Up` round-trips: `NodeAt` returns a node `Equal` to the original
+- `Down` then `Up` round-trips: `Focus` returns a node `Equal` to the original
 - `Down` then `Up` with no edits does not call `MakeNode` (use `CountingBranch`, assert `MakeCount() == 0`)
 - `Down` sets correct `right` siblings
 - Nested `Down` → `Down` → `Up` → `Up` works
@@ -288,10 +289,10 @@ Implement:
 **Files:** Add to `nav.go`, `nav_test.go`
 
 Implement:
-- `Left(Loc) (Loc, bool)`
-- `Right(Loc) (Loc, bool)`
-- `Leftmost(Loc) Loc`
-- `Rightmost(Loc) Loc`
+- `Left(Zipper) (Zipper, bool)`
+- `Right(Zipper) (Zipper, bool)`
+- `Leftmost(Zipper) Zipper`
+- `Rightmost(Zipper) Zipper`
 
 **Tests:**
 - `Down` then `Right` focuses second child
@@ -308,9 +309,9 @@ Implement:
 **Files:** `accessors.go`, `accessors_test.go`
 
 Implement:
-- `Path(Loc) []Node`
-- `Lefts(Loc) []Node`
-- `Rights(Loc) []Node`
+- `Path(Zipper) []Node`
+- `Lefts(Zipper) []Node`
+- `Rights(Zipper) []Node`
 
 **Tests:**
 - `Path` at root returns empty slice
@@ -326,12 +327,12 @@ Implement:
 **Files:** `edit.go`, `edit_test.go`
 
 Implement:
-- `Replace(Loc, Node) (Loc, bool)`
-- `Edit(Loc, func(Node) Node) (Loc, bool)`
+- `Replace(Zipper, Node) (Zipper, bool)`
+- `Edit(Zipper, func(Node) Node) (Zipper, bool)`
 
 **Tests:**
-- `Replace` changes the focused node, `NodeAt` reflects it
-- `Replace` then `Up` then `NodeAt` shows reconstructed parent with new child
+- `Replace` changes the focused node, `Focus` reflects it
+- `Replace` then `Up` then `Focus` shows reconstructed parent with new child
 - `Replace` then `Root` returns modified tree
 - `Edit` applies function to current node
 - `Replace` deep in tree, then `Root` propagates changes all the way up
@@ -343,8 +344,8 @@ Implement:
 **Files:** Add to `edit.go`, `edit_test.go`
 
 Implement:
-- `InsertLeft(Loc, Node) (Loc, bool)`
-- `InsertRight(Loc, Node) (Loc, bool)`
+- `InsertLeft(Zipper, Node) (Zipper, bool)`
+- `InsertRight(Zipper, Node) (Zipper, bool)`
 
 **Tests:**
 - `InsertLeft` at root returns false
@@ -360,8 +361,8 @@ Implement:
 **Files:** Add to `edit.go`, `edit_test.go`
 
 Implement:
-- `InsertChild(Loc, Node) (Loc, bool)`
-- `AppendChild(Loc, Node) (Loc, bool)`
+- `InsertChild(Zipper, Node) (Zipper, bool)`
+- `AppendChild(Zipper, Node) (Zipper, bool)`
 
 **Tests:**
 - `InsertChild` on a leaf returns false
@@ -377,7 +378,7 @@ Implement:
 **Files:** Add to `edit.go`, `edit_test.go`
 
 Implement:
-- `Remove(Loc) (Loc, bool)`
+- `Remove(Zipper) (Zipper, bool)`
 
 **Algorithm sketch:**
 
@@ -389,7 +390,7 @@ Remove(loc):
   if len(loc.path.left) > 0:
     // Predecessor is the rightmost descendant of the nearest left sibling.
     // Drop the current focus; move to that left sibling.
-    pred := Loc{
+    pred := Zipper{
       focus: loc.path.left[0],
       path: &path{
         left:    loc.path.left[1:],   // remaining lefts
@@ -412,7 +413,7 @@ Remove(loc):
     parentPath := loc.path.parent  // nil when grandparent is root
     if parentPath != nil:
       parentPath = &path{...parentPath, changed: true}
-    return Loc{focus: newParent, path: parentPath}, true
+    return Zipper{focus: newParent, path: parentPath}, true
 ```
 
 **Tests:**
@@ -428,16 +429,16 @@ Remove(loc):
 **Files:** `traverse.go`, `traverse_test.go`
 
 Implement:
-- `Next(Loc) Loc`
-- `Prev(Loc) (Loc, bool)`
-- `IsEnd(Loc) bool`
+- `Next(Zipper) Zipper`
+- `Prev(Zipper) (Zipper, bool)`
+- `IsEnd(Zipper) bool`
 
 **Tests:**
 - `Next` from root goes to first child (if branch)
 - `Next` visits all nodes in depth-first order
 - `Next` after last node returns end sentinel
 - `IsEnd` on end sentinel returns true
-- `IsEnd` on normal loc returns false
+- `IsEnd` on normal zipper returns false
 - `Next` on end sentinel returns end sentinel (stays)
 - `Root` on end sentinel returns false
 - `Prev` reverses `Next`
@@ -451,7 +452,7 @@ Implement:
 
 No new implementation — this step is purely tests verifying the full contract:
 
-- **Immutability:** Performing operations on a `Loc` does not affect any previously-held `Loc` values. Navigate to a child, hold that `Loc`, navigate further and make edits, then verify the held `Loc`'s `NodeAt` is still `Equal` to what it was when captured.
+- **Immutability:** Performing operations on a `Zipper` does not affect any previously-held `Zipper` values. Navigate to a child, hold that `Zipper`, navigate further and make edits, then verify the held `Zipper`'s `Focus` is still `Equal` to what it was when captured.
 - **Round-trip:** Build a tree, traverse the entire thing with `Next` without editing, call `Root` — verify the result is `Equal` to the original root. Additionally use `CountingBranch` as the root to assert `MakeCount() == 0`, confirming no reconstruction occurred.
 - **Structural sharing:** In a tree of depth N, make one edit at the deepest level, call `Root`, and verify via `CountingBranch` that `MakeNode` was called exactly N times (once per ancestor), not more.
 - **Complex edit scenario:** Replicate the Clojure example: `[[a * b] + [c * d]]` → replace all `*` with `/` via `Next` loop → verify result.
@@ -467,7 +468,7 @@ No new implementation — this step is purely tests verifying the full contract:
 github.com/mikowitz/gander/
 ├── go.mod
 ├── node.go          // Node, Leaf, Branch interfaces, BaseNode
-├── loc.go           // Loc, path structs, New(), NodeAt(), IsBranch(), Children()
+├── zipper.go        // Zipper, path structs, New(), Focus(), IsBranch(), Children()
 ├── nav.go           // Down, Up, Left, Right, Leftmost, Rightmost, Root
 ├── accessors.go     // Path, Lefts, Rights
 ├── edit.go          // Replace, Edit, InsertLeft, InsertRight, InsertChild, AppendChild, Remove
@@ -507,7 +508,7 @@ Like Clojure's `:l`, left siblings are stored in stack order (rightmost-nearest-
 The `changed` flag on `path` controls whether `Up` reconstructs the parent via `MakeNode` or returns the original parent node from `pnodes`. This is a structural-sharing optimization: unmodified subtrees are never copied.
 
 **When `changed` is set to true:**
-Any edit operation (`Replace`, `Edit`, `InsertLeft`, `InsertRight`, `InsertChild`, `AppendChild`, `Remove`) must set `changed: true` on the path of the resulting `Loc`.
+Any edit operation (`Replace`, `Edit`, `InsertLeft`, `InsertRight`, `InsertChild`, `AppendChild`, `Remove`) must set `changed: true` on the path of the resulting `Zipper`.
 
 **How `Up` uses it:**
 
@@ -530,10 +531,10 @@ Up(loc):
   else:
     grandparentPath = p.parent   // unchanged; no reconstruction needed
 
-  return Loc{focus: parentNode, path: grandparentPath}, true
+  return Zipper{focus: parentNode, path: grandparentPath}, true
 ```
 
-**What this means for callers:** After a pure navigation round-trip (no edits), the node returned by `NodeAt` is the identical original node — not a freshly constructed copy. After any edit, every ancestor on the path back to root is reconstructed exactly once when `Up` or `Root` is called.
+**What this means for callers:** After a pure navigation round-trip (no edits), the node returned by `Focus` is the identical original node — not a freshly constructed copy. After any edit, every ancestor on the path back to root is reconstructed exactly once when `Up` or `Root` is called.
 
 **Testing the optimization with `CountingBranch`:**
 
@@ -561,6 +562,61 @@ assert(cb.MakeCount() == 1)
 
 For a deeper tree, verify the count equals the number of ancestors between the edit and the root — each ancestor is reconstructed at most once.
 
+### Prev Algorithm
+
+`Prev` is the depth-first inverse of `Next`. Three cases:
+
+```
+Prev(loc):
+  if loc.path == nil:
+    return _, false   // at root — no predecessor
+
+  if len(loc.path.left) > 0:
+    // There is a left sibling. The predecessor is that sibling's
+    // rightmost descendant (or the sibling itself if it is a leaf).
+    sibling := Zipper{
+      focus: loc.path.left[0],
+      path: &path{
+        left:    loc.path.left[1:],
+        parent:  loc.path.parent,
+        pnodes:  loc.path.pnodes,
+        right:   prepend(loc.focus, loc.path.right),  // [focus] + rights
+        changed: loc.path.changed,
+      },
+    }
+    // Descend to rightmost descendant of sibling
+    for IsBranch(sibling) && len(Children(sibling)) > 0:
+      sibling, _ = Down(sibling)
+      sibling    = Rightmost(sibling)
+    return sibling, true
+
+  else:
+    // No left siblings — parent comes immediately before all its children
+    // in depth-first order, so the parent is the predecessor.
+    return Up(loc)
+```
+
+**`prepend` note:** `right` is stored in natural (leftmost-first) order, so prepending `loc.focus` means constructing a new slice `[loc.focus] + loc.path.right...`.
+
+This mirrors the predecessor-finding logic in `Remove` but keeps the removed node in the tree; it's purely a navigation move.
+
 ### End Sentinel
 
-`IsEnd` checks the `end` field on `Loc`. `Next` on an end sentinel returns itself. `Root` on an end sentinel returns `false` — the zipper is exhausted and cannot be rewound.
+`IsEnd` checks the `end` field on `Zipper`. `Next` on an end sentinel returns itself.
+
+`Root` on an end sentinel does **not** return false. By the time `Next` produces an end sentinel, it has zipped all the way up to root (the traversal algorithm must travel up repeatedly until `Up` fails, which only happens at root), so the sentinel's `focus` is already the fully-accumulated root node (with all edits applied) and `path` is nil. `Root` on an end sentinel therefore returns `Zipper{focus: sentinel.focus, path: nil}` with `true` — a fresh, non-sentinel root Zipper.
+
+This makes the common traversal-with-edits pattern work naturally:
+
+```go
+loc := gander.New(root)
+for !gander.IsEnd(loc) {
+    if condition(gander.Focus(loc)) {
+        loc, _ = gander.Replace(loc, newNode)
+    }
+    loc = gander.Next(loc)
+}
+result, _ := gander.Root(loc) // works: returns the modified root
+```
+
+The Step 9 test "Root on end sentinel returns false" should be updated to: `Root` on end sentinel returns a valid root Zipper (true), not false.

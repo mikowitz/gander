@@ -449,6 +449,135 @@ func TestInsertAccumulation(t *testing.T) {
 	})
 }
 
+// TestInsertChildAndAppendChildOnLeaf verifies that both InsertChild and AppendChild return
+// false when called on a leaf node, since leaves cannot have children.
+func TestInsertChildAndAppendChildOnLeaf(t *testing.T) {
+	tests := []struct {
+		name   string
+		insert func(gander.Zipper, gander.Node) (gander.Zipper, bool)
+	}{
+		{
+			name:   "InsertChild on a leaf returns false",
+			insert: gander.InsertChild,
+		},
+		{
+			name:   "AppendChild on a leaf returns false",
+			insert: gander.AppendChild,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			asrt := assert.New(t)
+			req := require.New(t)
+
+			leaf := StringLeaf{Value: "leaf"}
+			z := gander.NewZipper(leaf)
+
+			_, ok := tc.insert(z, StringLeaf{Value: "child"})
+			req.False(ok)
+			// Focus must remain unchanged after a failed insert.
+			focused, ok := gander.Focus(z).(StringLeaf)
+			req.True(ok)
+			asrt.True(focused.Equal(leaf))
+		})
+	}
+}
+
+// TestInsertChild verifies InsertChild behavior: focus stays on parent, inserted node becomes
+// leftmost child, Down navigates to it, and changes propagate to Root.
+func TestInsertChild(t *testing.T) {
+	t.Run("adds as leftmost child, focus stays on parent, Down focuses inserted child, Root propagates changes", func(t *testing.T) {
+		asrt := assert.New(t)
+		req := require.New(t)
+
+		a := StringLeaf{Value: "a"}
+		b := StringLeaf{Value: "b"}
+		root := ListBranch{Items: []gander.Node{a, b}}
+		z := gander.NewZipper(root)
+
+		newChild := StringLeaf{Value: "leftmost"}
+		z, ok := gander.InsertChild(z, newChild)
+		req.True(ok)
+
+		// Focus must still be the root branch.
+		focused, ok := gander.Focus(z).(ListBranch)
+		req.True(ok)
+		// The parent focus is the original root value; the new child is visible via Down/Root.
+		_ = focused
+
+		// Down from the parent must land on the inserted (leftmost) child.
+		child, ok := gander.Down(z)
+		req.True(ok)
+		childFocused, ok := gander.Focus(child).(StringLeaf)
+		req.True(ok)
+		asrt.True(childFocused.Equal(newChild), "Down from parent should focus the inserted leftmost child")
+
+		// Root must show the inserted node as the first child.
+		rootZ, ok := gander.Root(z)
+		req.True(ok)
+		children, ok := gander.Children(rootZ)
+		req.True(ok)
+		req.Len(children, 3, "root should now have 3 children")
+		asrt.True(children[0].(StringLeaf).Equal(newChild), "first child should be the inserted node")
+		asrt.True(children[1].(StringLeaf).Equal(a), "second child should be a")
+		asrt.True(children[2].(StringLeaf).Equal(b), "third child should be b")
+	})
+}
+
+// TestAppendChild verifies AppendChild behavior: focus stays on parent, inserted node becomes
+// rightmost child (including on an empty branch), and changes propagate to Root.
+func TestAppendChild(t *testing.T) {
+	t.Run("adds as rightmost child, focus stays on parent, and Root propagates changes", func(t *testing.T) {
+		asrt := assert.New(t)
+		req := require.New(t)
+
+		a := StringLeaf{Value: "a"}
+		b := StringLeaf{Value: "b"}
+		root := ListBranch{Items: []gander.Node{a, b}}
+		z := gander.NewZipper(root)
+
+		newChild := StringLeaf{Value: "rightmost"}
+		z, ok := gander.AppendChild(z, newChild)
+		req.True(ok)
+
+		// Focus must still be the root branch.
+		focused, ok := gander.Focus(z).(ListBranch)
+		req.True(ok)
+		_ = focused
+
+		// Root must show the appended node as the last child.
+		rootZ, ok := gander.Root(z)
+		req.True(ok)
+		children, ok := gander.Children(rootZ)
+		req.True(ok)
+		req.Len(children, 3, "root should now have 3 children")
+		asrt.True(children[0].(StringLeaf).Equal(a), "first child should be a")
+		asrt.True(children[1].(StringLeaf).Equal(b), "second child should be b")
+		asrt.True(children[2].(StringLeaf).Equal(newChild), "third child should be the appended node")
+	})
+
+	t.Run("on empty branch creates a single child", func(t *testing.T) {
+		asrt := assert.New(t)
+		req := require.New(t)
+
+		empty := ListBranch{Items: []gander.Node{}}
+		z := gander.NewZipper(empty)
+
+		onlyChild := StringLeaf{Value: "only"}
+		z, ok := gander.AppendChild(z, onlyChild)
+		req.True(ok)
+
+		// Root shows the single appended child.
+		rootZ, ok := gander.Root(z)
+		req.True(ok)
+		children, ok := gander.Children(rootZ)
+		req.True(ok)
+		req.Len(children, 1, "branch should now have exactly one child")
+		asrt.True(children[0].(StringLeaf).Equal(onlyChild), "the single child should be the appended node")
+	})
+}
+
 // TestUpReconstructionOptimization verifies the changed-flag behavior via CountingBranch.
 // Two cases are tested in a table: one where no edit is made (MakeCount stays 0) and one
 // where Replace is called before Up (MakeCount becomes 1).

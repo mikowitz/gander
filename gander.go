@@ -121,10 +121,10 @@ func Left(z Zipper) (Zipper, bool) {
 	if len(z.path.left) == 0 {
 		return z, false
 	}
-	focus := z.path.left[0]
-	right := append(z.path.right, z.focus)
+	focus := z.path.left[len(z.path.left)-1]
+	right := append([]Node{z.focus}, z.path.right...)
 	z.path.right = right
-	z.path.left = z.path.left[1:]
+	z.path.left = z.path.left[:len(z.path.left)-1]
 	return Zipper{
 		focus: focus,
 		path:  z.path,

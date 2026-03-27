@@ -422,7 +422,6 @@ Remove(loc):
 - `Remove` at leftmost child moves to parent (with remaining children)
 - `Remove` only child leaves parent with empty children
 - `Remove` then `Root` shows the node is gone
-- `Remove` then `Next` continues traversal correctly
 
 ### Step 9: Depth-First Traversal (Next, Prev, IsEnd)
 
@@ -434,6 +433,7 @@ Implement:
 - `IsEnd(Zipper) bool`
 
 **Tests:**
+- `Remove` then `Next` continues traversal correctly
 - `Next` from root goes to first child (if branch)
 - `Next` visits all nodes in depth-first order
 - `Next` after last node returns end sentinel

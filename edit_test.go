@@ -1,0 +1,235 @@
+// ABOUTME: Tests for Replace, Edit, and Root editing operations (Step 5).
+// ABOUTME: Verifies focus replacement, tree reconstruction, and the changed-flag optimization.
+
+package gander_test
+
+import (
+	"testing"
+
+	"github.com/mikowitz/gander"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestReplace(t *testing.T) {
+	t.Run("changes the focused node and Focus reflects it", func(t *testing.T) {
+		asrt := assert.New(t)
+		req := require.New(t)
+
+		original := StringLeaf{Value: "original"}
+		replacement := StringLeaf{Value: "replacement"}
+		z := gander.NewZipper(original)
+
+		z, ok := gander.Replace(z, replacement)
+		req.True(ok)
+
+		focused, ok := gander.Focus(z).(StringLeaf)
+		req.True(ok)
+		asrt.True(focused.Equal(replacement))
+	})
+
+	t.Run("then Up then Focus shows reconstructed parent with new child", func(t *testing.T) {
+		asrt := assert.New(t)
+		req := require.New(t)
+
+		a := StringLeaf{Value: "a"}
+		b := StringLeaf{Value: "b"}
+		c := StringLeaf{Value: "c"}
+		root := ListBranch{Items: []gander.Node{a, b, c}}
+		z := gander.NewZipper(root)
+
+		// Navigate down to the first child, replace it, then go up.
+		z, ok := gander.Down(z)
+		req.True(ok)
+
+		replacement := StringLeaf{Value: "z"}
+		z, ok = gander.Replace(z, replacement)
+		req.True(ok)
+
+		z, ok = gander.Up(z)
+		req.True(ok)
+
+		// The parent should now contain the replacement as its first child.
+		children, ok := gander.Children(z)
+		req.True(ok)
+		req.Len(children, 3)
+
+		first, ok := children[0].(StringLeaf)
+		req.True(ok)
+		asrt.True(first.Equal(replacement), "first child should be the replacement")
+
+		second, ok := children[1].(StringLeaf)
+		req.True(ok)
+		asrt.True(second.Equal(b), "second child should be unchanged")
+
+		third, ok := children[2].(StringLeaf)
+		req.True(ok)
+		asrt.True(third.Equal(c), "third child should be unchanged")
+	})
+}
+
+func TestRoot(t *testing.T) {
+	t.Run("Replace then Root returns the modified tree", func(t *testing.T) {
+		asrt := assert.New(t)
+		req := require.New(t)
+
+		a := StringLeaf{Value: "a"}
+		b := StringLeaf{Value: "b"}
+		root := ListBranch{Items: []gander.Node{a, b}}
+		z := gander.NewZipper(root)
+
+		// Replace the first child and zip all the way back to root.
+		z, ok := gander.Down(z)
+		req.True(ok)
+
+		replacement := StringLeaf{Value: "x"}
+		z, ok = gander.Replace(z, replacement)
+		req.True(ok)
+
+		z, ok = gander.Root(z)
+		req.True(ok)
+
+		// Root focus should be a ListBranch with the replaced child.
+		rootFocused, ok := gander.Focus(z).(ListBranch)
+		req.True(ok)
+
+		expected := ListBranch{Items: []gander.Node{replacement, b}}
+		asrt.True(rootFocused.Equal(expected))
+	})
+
+	t.Run("Replace deep in tree then Root propagates changes all the way up", func(t *testing.T) {
+		asrt := assert.New(t)
+		req := require.New(t)
+
+		// Build a tree: root → [inner → [leaf_a, leaf_b], leaf_c]
+		leafA := StringLeaf{Value: "a"}
+		leafB := StringLeaf{Value: "b"}
+		leafC := StringLeaf{Value: "c"}
+		inner := ListBranch{Items: []gander.Node{leafA, leafB}}
+		root := ListBranch{Items: []gander.Node{inner, leafC}}
+		z := gander.NewZipper(root)
+
+		// Navigate to leaf_a (two levels deep) and replace it.
+		z, ok := gander.Down(z) // focus: inner
+		req.True(ok)
+
+		z, ok = gander.Down(z) // focus: leaf_a
+		req.True(ok)
+
+		replacement := StringLeaf{Value: "z"}
+		z, ok = gander.Replace(z, replacement)
+		req.True(ok)
+
+		z, ok = gander.Root(z)
+		req.True(ok)
+
+		// The root should reflect the deep replacement.
+		rootFocused, ok := gander.Focus(z).(ListBranch)
+		req.True(ok)
+
+		expectedInner := ListBranch{Items: []gander.Node{replacement, leafB}}
+		expectedRoot := ListBranch{Items: []gander.Node{expectedInner, leafC}}
+		asrt.True(rootFocused.Equal(expectedRoot))
+	})
+}
+
+func TestEdit(t *testing.T) {
+	t.Run("applies function to current node and replaces focus", func(t *testing.T) {
+		asrt := assert.New(t)
+		req := require.New(t)
+
+		original := StringLeaf{Value: "hello"}
+		z := gander.NewZipper(original)
+
+		transform := func(n gander.Node) gander.Node {
+			leaf := n.(StringLeaf)
+			return StringLeaf{Value: leaf.Value + "_edited"}
+		}
+
+		z, ok := gander.Edit(z, transform)
+		req.True(ok)
+
+		focused, ok := gander.Focus(z).(StringLeaf)
+		req.True(ok)
+		asrt.True(focused.Equal(StringLeaf{Value: "hello_edited"}))
+	})
+
+	t.Run("Edit then Root reflects the transformation in the full tree", func(t *testing.T) {
+		asrt := assert.New(t)
+		req := require.New(t)
+
+		a := StringLeaf{Value: "a"}
+		b := StringLeaf{Value: "b"}
+		root := ListBranch{Items: []gander.Node{a, b}}
+		z := gander.NewZipper(root)
+
+		z, ok := gander.Down(z)
+		req.True(ok)
+
+		// Transform leaf "a" to "A" (the original value is not used in the output).
+		z, ok = gander.Edit(z, func(n gander.Node) gander.Node {
+			_ = n.(StringLeaf)
+			return StringLeaf{Value: "A"}
+		})
+		req.True(ok)
+
+		z, ok = gander.Root(z)
+		req.True(ok)
+
+		rootFocused, ok := gander.Focus(z).(ListBranch)
+		req.True(ok)
+
+		expected := ListBranch{Items: []gander.Node{StringLeaf{Value: "A"}, b}}
+		asrt.True(rootFocused.Equal(expected))
+	})
+}
+
+// TestUpReconstructionOptimization verifies the changed-flag behavior via CountingBranch.
+// Two cases are tested in a table: one where no edit is made (MakeCount stays 0) and one
+// where Replace is called before Up (MakeCount becomes 1).
+func TestUpReconstructionOptimization(t *testing.T) {
+	tests := []struct {
+		name          string
+		editChild     bool // if true, call Replace on child before Up
+		wantMakeCount int
+	}{
+		{
+			name:          "unmodified Up does not call WithChildren",
+			editChild:     false,
+			wantMakeCount: 0,
+		},
+		{
+			name:          "modified Up calls WithChildren exactly once",
+			editChild:     true,
+			wantMakeCount: 1,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			asrt := assert.New(t)
+			req := require.New(t)
+
+			cb := NewCountingBranch([]gander.Node{
+				StringLeaf{Value: "a"},
+				StringLeaf{Value: "b"},
+			})
+			z := gander.NewZipper(cb)
+
+			z, ok := gander.Down(z)
+			req.True(ok)
+
+			if tc.editChild {
+				replacement := StringLeaf{Value: "z"}
+				z, ok = gander.Replace(z, replacement)
+				req.True(ok)
+			}
+
+			_, ok = gander.Up(z)
+			req.True(ok)
+
+			asrt.Equal(tc.wantMakeCount, cb.MakeCount(),
+				"WithChildren call count mismatch for case %q", tc.name)
+		})
+	}
+}

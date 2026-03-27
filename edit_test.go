@@ -184,6 +184,271 @@ func TestEdit(t *testing.T) {
 	})
 }
 
+// TestInsertLeftAndInsertRightAtRoot verifies that both InsertLeft and InsertRight return
+// false when called at the root, since root has no sibling slots.
+func TestInsertLeftAndInsertRightAtRoot(t *testing.T) {
+	tests := []struct {
+		name   string
+		insert func(gander.Zipper, gander.Node) (gander.Zipper, bool)
+	}{
+		{
+			name:   "InsertLeft at root returns false",
+			insert: gander.InsertLeft,
+		},
+		{
+			name:   "InsertRight at root returns false",
+			insert: gander.InsertRight,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			asrt := assert.New(t)
+			req := require.New(t)
+
+			root := ListBranch{Items: []gander.Node{
+				StringLeaf{Value: "a"},
+				StringLeaf{Value: "b"},
+			}}
+			z := gander.NewZipper(root)
+
+			_, ok := tc.insert(z, StringLeaf{Value: "new"})
+			req.False(ok)
+			// Focus must remain unchanged after a failed insert.
+			focused, ok := gander.Focus(z).(ListBranch)
+			req.True(ok)
+			asrt.True(focused.Equal(root))
+		})
+	}
+}
+
+// TestInsertLeft verifies InsertLeft behavior: focus is unchanged, left sibling list grows,
+// the inserted node appears in the reconstructed tree, and navigation reaches it.
+func TestInsertLeft(t *testing.T) {
+	t.Run("adds to left siblings and focus stays on current node", func(t *testing.T) {
+		asrt := assert.New(t)
+		req := require.New(t)
+
+		a := StringLeaf{Value: "a"}
+		b := StringLeaf{Value: "b"}
+		root := ListBranch{Items: []gander.Node{a, b}}
+		z := gander.NewZipper(root)
+
+		// Navigate down to "b" so it has a left sibling.
+		z, ok := gander.Down(z) // focus: "a"
+		req.True(ok)
+		z, ok = gander.Right(z) // focus: "b"
+		req.True(ok)
+
+		newNode := StringLeaf{Value: "inserted"}
+		z, ok = gander.InsertLeft(z, newNode)
+		req.True(ok)
+
+		// Focus must still be "b".
+		focused, ok := gander.Focus(z).(StringLeaf)
+		req.True(ok)
+		asrt.True(focused.Equal(b), "focus must remain on b after InsertLeft")
+
+		// Lefts must now contain both "a" and the inserted node (in tree order: a, inserted).
+		lefts := gander.Lefts(z)
+		req.Len(lefts, 2, "should have 2 left siblings after InsertLeft")
+		asrt.True(lefts[0].(StringLeaf).Equal(a), "first left sibling should be a")
+		asrt.True(lefts[1].(StringLeaf).Equal(newNode), "second left sibling should be the inserted node")
+	})
+
+	t.Run("Root shows the inserted node in the tree and Left navigates to it", func(t *testing.T) {
+		asrt := assert.New(t)
+		req := require.New(t)
+
+		a := StringLeaf{Value: "a"}
+		b := StringLeaf{Value: "b"}
+		root := ListBranch{Items: []gander.Node{a, b}}
+		z := gander.NewZipper(root)
+
+		// Navigate down to "b", insert a sibling to its left.
+		z, ok := gander.Down(z) // focus: "a"
+		req.True(ok)
+		z, ok = gander.Right(z) // focus: "b"
+		req.True(ok)
+
+		newNode := StringLeaf{Value: "between"}
+		z, ok = gander.InsertLeft(z, newNode)
+		req.True(ok)
+
+		// Zip up to root and verify the full children list: [a, between, b].
+		rootZ, ok := gander.Root(z)
+		req.True(ok)
+
+		children, ok := gander.Children(rootZ)
+		req.True(ok)
+		req.Len(children, 3, "root should now have 3 children")
+		asrt.True(children[0].(StringLeaf).Equal(a), "first child should be a")
+		asrt.True(children[1].(StringLeaf).Equal(newNode), "second child should be the inserted node")
+		asrt.True(children[2].(StringLeaf).Equal(b), "third child should be b")
+
+		// Navigate left from "b" to reach the inserted node.
+		prev, ok := gander.Left(z)
+		req.True(ok)
+		prevFocused, ok := gander.Focus(prev).(StringLeaf)
+		req.True(ok)
+		asrt.True(prevFocused.Equal(newNode), "Left from b should land on the inserted node")
+	})
+}
+
+// TestInsertRight verifies InsertRight behavior: focus is unchanged, right sibling list grows,
+// the inserted node appears in the reconstructed tree, and navigation reaches it.
+func TestInsertRight(t *testing.T) {
+	t.Run("adds to right siblings and focus stays on current node", func(t *testing.T) {
+		asrt := assert.New(t)
+		req := require.New(t)
+
+		a := StringLeaf{Value: "a"}
+		b := StringLeaf{Value: "b"}
+		root := ListBranch{Items: []gander.Node{a, b}}
+		z := gander.NewZipper(root)
+
+		// Navigate down to "a"; it has "b" as a right sibling.
+		z, ok := gander.Down(z) // focus: "a"
+		req.True(ok)
+
+		newNode := StringLeaf{Value: "inserted"}
+		z, ok = gander.InsertRight(z, newNode)
+		req.True(ok)
+
+		// Focus must still be "a".
+		focused, ok := gander.Focus(z).(StringLeaf)
+		req.True(ok)
+		asrt.True(focused.Equal(a), "focus must remain on a after InsertRight")
+
+		// Rights must now contain the inserted node first, then "b".
+		rights := gander.Rights(z)
+		req.Len(rights, 2, "should have 2 right siblings after InsertRight")
+		asrt.True(rights[0].(StringLeaf).Equal(newNode), "first right sibling should be the inserted node")
+		asrt.True(rights[1].(StringLeaf).Equal(b), "second right sibling should be b")
+	})
+
+	t.Run("Root shows the inserted node in the tree and Right navigates to it", func(t *testing.T) {
+		asrt := assert.New(t)
+		req := require.New(t)
+
+		a := StringLeaf{Value: "a"}
+		b := StringLeaf{Value: "b"}
+		root := ListBranch{Items: []gander.Node{a, b}}
+		z := gander.NewZipper(root)
+
+		// Navigate down to "a", insert a sibling to its right.
+		z, ok := gander.Down(z) // focus: "a"
+		req.True(ok)
+
+		newNode := StringLeaf{Value: "between"}
+		z, ok = gander.InsertRight(z, newNode)
+		req.True(ok)
+
+		// Zip up to root and verify the full children list: [a, between, b].
+		rootZ, ok := gander.Root(z)
+		req.True(ok)
+
+		children, ok := gander.Children(rootZ)
+		req.True(ok)
+		req.Len(children, 3, "root should now have 3 children")
+		asrt.True(children[0].(StringLeaf).Equal(a), "first child should be a")
+		asrt.True(children[1].(StringLeaf).Equal(newNode), "second child should be the inserted node")
+		asrt.True(children[2].(StringLeaf).Equal(b), "third child should be b")
+
+		// Navigate right from "a" to reach the inserted node.
+		next, ok := gander.Right(z)
+		req.True(ok)
+		nextFocused, ok := gander.Focus(next).(StringLeaf)
+		req.True(ok)
+		asrt.True(nextFocused.Equal(newNode), "Right from a should land on the inserted node")
+	})
+}
+
+// TestInsertAccumulation verifies that multiple consecutive InsertLeft and InsertRight calls
+// each accumulate correctly in the sibling lists.
+func TestInsertAccumulation(t *testing.T) {
+	t.Run("multiple InsertLeft calls accumulate in correct tree order", func(t *testing.T) {
+		asrt := assert.New(t)
+		req := require.New(t)
+
+		a := StringLeaf{Value: "a"}
+		b := StringLeaf{Value: "b"}
+		root := ListBranch{Items: []gander.Node{a, b}}
+		z := gander.NewZipper(root)
+
+		// Navigate to "b" and insert two nodes to its left.
+		z, ok := gander.Down(z) // focus: "a"
+		req.True(ok)
+		z, ok = gander.Right(z) // focus: "b"
+		req.True(ok)
+
+		first := StringLeaf{Value: "first"}
+		second := StringLeaf{Value: "second"}
+
+		z, ok = gander.InsertLeft(z, first)
+		req.True(ok)
+		z, ok = gander.InsertLeft(z, second)
+		req.True(ok)
+
+		// Focus must still be "b".
+		focused, ok := gander.Focus(z).(StringLeaf)
+		req.True(ok)
+		asrt.True(focused.Equal(b))
+
+		// Root should show [a, first, second, b] in tree order.
+		rootZ, ok := gander.Root(z)
+		req.True(ok)
+
+		children, ok := gander.Children(rootZ)
+		req.True(ok)
+		req.Len(children, 4)
+		asrt.True(children[0].(StringLeaf).Equal(a), "children[0] should be a")
+		asrt.True(children[1].(StringLeaf).Equal(first), "children[1] should be first")
+		asrt.True(children[2].(StringLeaf).Equal(second), "children[2] should be second")
+		asrt.True(children[3].(StringLeaf).Equal(b), "children[3] should be b")
+	})
+
+	t.Run("multiple InsertRight calls accumulate in correct tree order", func(t *testing.T) {
+		asrt := assert.New(t)
+		req := require.New(t)
+
+		a := StringLeaf{Value: "a"}
+		b := StringLeaf{Value: "b"}
+		root := ListBranch{Items: []gander.Node{a, b}}
+		z := gander.NewZipper(root)
+
+		// Navigate to "a" and insert two nodes to its right.
+		z, ok := gander.Down(z) // focus: "a"
+		req.True(ok)
+
+		first := StringLeaf{Value: "first"}
+		second := StringLeaf{Value: "second"}
+
+		z, ok = gander.InsertRight(z, first)
+		req.True(ok)
+		z, ok = gander.InsertRight(z, second)
+		req.True(ok)
+
+		// Focus must still be "a".
+		focused, ok := gander.Focus(z).(StringLeaf)
+		req.True(ok)
+		asrt.True(focused.Equal(a))
+
+		// Root should show [a, second, first, b] in tree order because each InsertRight
+		// prepends to the right sibling list, so the last-inserted node is nearest.
+		rootZ, ok := gander.Root(z)
+		req.True(ok)
+
+		children, ok := gander.Children(rootZ)
+		req.True(ok)
+		req.Len(children, 4)
+		asrt.True(children[0].(StringLeaf).Equal(a), "children[0] should be a")
+		asrt.True(children[1].(StringLeaf).Equal(second), "children[1] should be second (nearest right)")
+		asrt.True(children[2].(StringLeaf).Equal(first), "children[2] should be first")
+		asrt.True(children[3].(StringLeaf).Equal(b), "children[3] should be b")
+	})
+}
+
 // TestUpReconstructionOptimization verifies the changed-flag behavior via CountingBranch.
 // Two cases are tested in a table: one where no edit is made (MakeCount stays 0) and one
 // where Replace is called before Up (MakeCount becomes 1).

@@ -69,7 +69,8 @@ func TestPath(t *testing.T) {
 			z = tc.navigate(z, req)
 			got := gander.Path(z)
 			req.Len(got, len(tc.wantPath))
-			asrt.NotNil(gander.Path(z))
+			// ensures that it always returns an empty slice, never `nil`
+			asrt.NotNil(got)
 			for i, want := range tc.wantPath {
 				asrt.True(want.(interface {
 					Equal(gander.Node) bool

@@ -53,11 +53,12 @@ func Right(z Zipper) (Zipper, bool) {
 	}
 	focus := z.path.right[0]
 	left := append(z.path.left, z.focus)
-	z.path.left = left
-	z.path.right = z.path.right[1:]
+	path := z.path
+	path.left = left
+	path.right = z.path.right[1:]
 	return Zipper{
 		focus: focus,
-		path:  z.path,
+		path:  path,
 	}, true
 }
 
@@ -70,11 +71,12 @@ func Left(z Zipper) (Zipper, bool) {
 	}
 	focus := z.path.left[len(z.path.left)-1]
 	right := append([]Node{z.focus}, z.path.right...)
-	z.path.right = right
-	z.path.left = z.path.left[:len(z.path.left)-1]
+	path := z.path
+	path.right = right
+	path.left = z.path.left[:len(z.path.left)-1]
 	return Zipper{
 		focus: focus,
-		path:  z.path,
+		path:  path,
 	}, true
 }
 
@@ -87,11 +89,12 @@ func Rightmost(z Zipper) (Zipper, bool) {
 	}
 	focus := z.path.right[len(z.path.right)-1]
 	left := append(append(z.path.left, z.focus), z.path.right[:len(z.path.right)-1]...)
-	z.path.left = left
-	z.path.right = []Node{}
+	path := z.path
+	path.left = left
+	path.right = []Node{}
 	return Zipper{
 		focus: focus,
-		path:  z.path,
+		path:  path,
 	}, true
 }
 
@@ -104,11 +107,12 @@ func Leftmost(z Zipper) (Zipper, bool) {
 	}
 	focus := z.path.left[0]
 	right := append(append(z.path.left[1:], z.focus), z.path.right...)
-	z.path.right = right
-	z.path.left = []Node{}
+	path := z.path
+	path.right = right
+	path.left = []Node{}
 	return Zipper{
 		focus: focus,
-		path:  z.path,
+		path:  path,
 	}, true
 }
 

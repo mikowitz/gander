@@ -50,6 +50,16 @@ func TestPath(t *testing.T) {
 			},
 			wantPath: []gander.Node{root, innerBranch},
 		},
+		{
+			name: "at end sentinel returns empty slice",
+			navigate: func(z gander.Zipper) gander.Zipper {
+				for !gander.IsEnd(z) {
+					z = gander.Next(z)
+				}
+				return z
+			},
+			wantPath: []gander.Node{},
+		},
 	}
 
 	for _, tc := range tests {
@@ -82,6 +92,16 @@ func TestLefts(t *testing.T) {
 		asrt := assert.New(t)
 
 		z := gander.NewZipper(root)
+		asrt.Nil(gander.Lefts(z))
+	})
+
+	t.Run("at end sentinel returns nil", func(t *testing.T) {
+		asrt := assert.New(t)
+
+		z := gander.NewZipper(root)
+		for !gander.IsEnd(z) {
+			z = gander.Next(z)
+		}
 		asrt.Nil(gander.Lefts(z))
 	})
 
@@ -171,6 +191,16 @@ func TestRights(t *testing.T) {
 		asrt := assert.New(t)
 
 		z := gander.NewZipper(root)
+		asrt.Nil(gander.Rights(z))
+	})
+
+	t.Run("at end sentinel returns nil", func(t *testing.T) {
+		asrt := assert.New(t)
+
+		z := gander.NewZipper(root)
+		for !gander.IsEnd(z) {
+			z = gander.Next(z)
+		}
 		asrt.Nil(gander.Rights(z))
 	})
 

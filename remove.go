@@ -1,5 +1,15 @@
+// ABOUTME: Implements the Remove function for deleting the focused node from the tree.
+// ABOUTME: After removal, the Zipper is repositioned at the depth-first predecessor.
+
 package gander
 
+// Remove removes the focused node and returns a Zipper positioned at the
+// depth-first predecessor of the removed node. If the focused node has left
+// siblings, the predecessor is the rightmost descendant of the nearest left
+// sibling. If the focused node is the leftmost child, the predecessor is the
+// parent.
+//
+// It returns z, false when z is at the root.
 func Remove(z Zipper) (Zipper, bool) {
 	if z.path == nil {
 		return z, false

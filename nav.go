@@ -1,5 +1,10 @@
+// ABOUTME: Implements the navigation functions for moving between nodes in a Zipper.
+// ABOUTME: Covers Down, Up, Left, Right, Leftmost, Rightmost, and Root.
+
 package gander
 
+// Down moves to the leftmost child of the focused node.
+// It returns z, false if the focused node is not a [Branch] or has no children.
 func Down(z Zipper) (Zipper, bool) {
 	if IsBranch(z) {
 		if children, ok := Children(z); ok {
@@ -25,6 +30,10 @@ func Down(z Zipper) (Zipper, bool) {
 	}
 }
 
+// Up moves to the parent of the focused node. If any changes were made to the
+// current node or its descendants, Up reconstructs the parent by calling
+// [Branch.WithChildren] with the updated child list.
+// It returns z, false when z is at the root.
 func Up(z Zipper) (Zipper, bool) {
 	if z.path == nil {
 		return z, false
@@ -44,6 +53,8 @@ func Up(z Zipper) (Zipper, bool) {
 	}, true
 }
 
+// Right moves to the right sibling of the focused node.
+// It returns z, false if z is at the rightmost sibling or at the root.
 func Right(z Zipper) (Zipper, bool) {
 	if z.path == nil {
 		return z, false
@@ -62,6 +73,8 @@ func Right(z Zipper) (Zipper, bool) {
 	}, true
 }
 
+// Left moves to the left sibling of the focused node.
+// It returns z, false if z is at the leftmost sibling or at the root.
 func Left(z Zipper) (Zipper, bool) {
 	if z.path == nil {
 		return z, false
@@ -80,6 +93,9 @@ func Left(z Zipper) (Zipper, bool) {
 	}, true
 }
 
+// Rightmost moves to the rightmost sibling of the focused node. If z is
+// already at the rightmost sibling, it returns z, true.
+// It returns z, false when z is at the root.
 func Rightmost(z Zipper) (Zipper, bool) {
 	if z.path == nil {
 		return z, false
@@ -98,6 +114,9 @@ func Rightmost(z Zipper) (Zipper, bool) {
 	}, true
 }
 
+// Leftmost moves to the leftmost sibling of the focused node. If z is already
+// at the leftmost sibling, it returns z, true.
+// It returns z, false when z is at the root.
 func Leftmost(z Zipper) (Zipper, bool) {
 	if z.path == nil {
 		return z, false
@@ -116,6 +135,12 @@ func Leftmost(z Zipper) (Zipper, bool) {
 	}, true
 }
 
+// Root moves to the root of the tree, applying all pending changes along the
+// way, and returns a Zipper focused on the root node. When called on an end
+// sentinel produced by [Next], Root returns a fresh root Zipper whose focus is
+// the fully-accumulated root node (with all edits applied).
+//
+// Root always returns true.
 func Root(z Zipper) (Zipper, bool) {
 	if z.path == nil {
 		return z, true

@@ -14,7 +14,7 @@ and popularized in Clojure by `clojure.zip`. Gander closely follows the
 go get github.com/mikowitz/gander
 ```
 
-Requires Go 1.23 or later.
+Requires Go 1.25 or later.
 
 ## Overview
 

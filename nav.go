@@ -145,8 +145,6 @@ func Root(z Zipper) (Zipper, bool) {
 	if z.path == nil {
 		return z, true
 	}
-	if z, ok := Up(z); ok {
-		return Root(z)
-	}
-	return z, false
+	z, _ = Up(z)
+	return Root(z)
 }

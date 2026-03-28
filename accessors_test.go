@@ -1,4 +1,4 @@
-// ABOUTME: Tests for the Path, Lefts, and Rights accessor functions (Step 4).
+// ABOUTME: Tests for the Path, Lefts, and Rights accessor functions.
 // ABOUTME: Verifies that ancestor paths and sibling slices are returned in correct tree order.
 
 package gander_test
@@ -77,6 +77,13 @@ func TestLefts(t *testing.T) {
 	b := StringLeaf{Value: "b"}
 	c := StringLeaf{Value: "c"}
 	root := ListBranch{Items: []gander.Node{a, b, c}}
+
+	t.Run("at root returns nil", func(t *testing.T) {
+		asrt := assert.New(t)
+
+		z := gander.NewZipper(root)
+		asrt.Nil(gander.Lefts(z))
+	})
 
 	t.Run("after Down returns empty slice at leftmost child", func(t *testing.T) {
 		asrt := assert.New(t)
@@ -159,6 +166,13 @@ func TestRights(t *testing.T) {
 	b := StringLeaf{Value: "b"}
 	c := StringLeaf{Value: "c"}
 	root := ListBranch{Items: []gander.Node{a, b, c}}
+
+	t.Run("at root returns nil", func(t *testing.T) {
+		asrt := assert.New(t)
+
+		z := gander.NewZipper(root)
+		asrt.Nil(gander.Rights(z))
+	})
 
 	t.Run("after Down returns remaining right siblings", func(t *testing.T) {
 		asrt := assert.New(t)

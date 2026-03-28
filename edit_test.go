@@ -1,4 +1,4 @@
-// ABOUTME: Tests for Replace, Edit, and Root editing operations (Step 5).
+// ABOUTME: Tests for Replace, Edit, and Root editing operations.
 // ABOUTME: Verifies focus replacement, tree reconstruction, and the changed-flag optimization.
 
 package gander_test

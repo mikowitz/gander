@@ -1,4 +1,4 @@
-// ABOUTME: Tests for depth-first traversal operations Next, Prev, and IsEnd (Step 9).
+// ABOUTME: Tests for depth-first traversal operations Next, Prev, and IsEnd.
 // ABOUTME: Verifies traversal order, end sentinel behavior, and edit-during-traversal patterns.
 
 package gander_test

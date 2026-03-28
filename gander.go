@@ -1,5 +1,4 @@
 // ABOUTME: Defines the core Node interface hierarchy, Zipper type, and fundamental accessor functions.
-// ABOUTME: This is the main package file and contains the package-level documentation.
 
 package gander
 

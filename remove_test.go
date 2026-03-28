@@ -1,4 +1,4 @@
-// ABOUTME: Tests for the Remove editing operation (Step 8).
+// ABOUTME: Tests for the Remove editing operation.
 // ABOUTME: Verifies removal semantics, depth-first predecessor navigation, and tree reconstruction after removal.
 
 package gander_test

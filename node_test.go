@@ -1,5 +1,5 @@
 // ABOUTME: Tests for the core gander interfaces, Zipper construction, and accessor functions.
-// ABOUTME: Covers New, Focus, IsBranch, and Children for Step 1 of the zipper library.
+// ABOUTME: Covers New, Focus, IsBranch, and Children.
 
 package gander_test
 

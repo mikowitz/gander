@@ -12,8 +12,6 @@ import (
 )
 
 func TestPath(t *testing.T) {
-	req := require.New(t)
-
 	a := StringLeaf{Value: "a"}
 	b := StringLeaf{Value: "b"}
 	c := StringLeaf{Value: "c"}
@@ -22,17 +20,17 @@ func TestPath(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		navigate func(z gander.Zipper) gander.Zipper
+		navigate func(z gander.Zipper, req *require.Assertions) gander.Zipper
 		wantPath []gander.Node
 	}{
 		{
 			name:     "at root returns empty slice",
-			navigate: func(z gander.Zipper) gander.Zipper { return z },
+			navigate: func(z gander.Zipper, req *require.Assertions) gander.Zipper { return z },
 			wantPath: []gander.Node{},
 		},
 		{
 			name: "after Down returns slice containing root",
-			navigate: func(z gander.Zipper) gander.Zipper {
+			navigate: func(z gander.Zipper, req *require.Assertions) gander.Zipper {
 				z, ok := gander.Down(z)
 				req.True(ok)
 				return z
@@ -41,7 +39,7 @@ func TestPath(t *testing.T) {
 		},
 		{
 			name: "after Down then Down returns slice containing root and first child",
-			navigate: func(z gander.Zipper) gander.Zipper {
+			navigate: func(z gander.Zipper, req *require.Assertions) gander.Zipper {
 				z, ok := gander.Down(z)
 				req.True(ok)
 				z, ok = gander.Down(z)
@@ -52,7 +50,7 @@ func TestPath(t *testing.T) {
 		},
 		{
 			name: "at end sentinel returns empty slice",
-			navigate: func(z gander.Zipper) gander.Zipper {
+			navigate: func(z gander.Zipper, req *require.Assertions) gander.Zipper {
 				for !gander.IsEnd(z) {
 					z = gander.Next(z)
 				}
@@ -68,9 +66,10 @@ func TestPath(t *testing.T) {
 			req := require.New(t)
 
 			z := gander.NewZipper(root)
-			z = tc.navigate(z)
+			z = tc.navigate(z, req)
 			got := gander.Path(z)
 			req.Len(got, len(tc.wantPath))
+			asrt.NotNil(gander.Path(z))
 			for i, want := range tc.wantPath {
 				asrt.True(want.(interface {
 					Equal(gander.Node) bool

@@ -1,4 +1,4 @@
-// ABOUTME: Integration tests verifying the full gander Zipper contract (Step 10).
+// ABOUTME: Integration tests verifying the full gander Zipper contract.
 // ABOUTME: Covers immutability, round-trips, structural sharing, complex edits, and heterogeneous trees.
 
 package gander_test

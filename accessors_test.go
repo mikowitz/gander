@@ -1,4 +1,4 @@
-// ABOUTME: Tests for the Path, Lefts, and Rights accessor functions (Step 4).
+// ABOUTME: Tests for the Path, Lefts, and Rights accessor functions.
 // ABOUTME: Verifies that ancestor paths and sibling slices are returned in correct tree order.
 
 package gander_test
@@ -12,8 +12,6 @@ import (
 )
 
 func TestPath(t *testing.T) {
-	req := require.New(t)
-
 	a := StringLeaf{Value: "a"}
 	b := StringLeaf{Value: "b"}
 	c := StringLeaf{Value: "c"}
@@ -22,17 +20,17 @@ func TestPath(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		navigate func(z gander.Zipper) gander.Zipper
+		navigate func(z gander.Zipper, req *require.Assertions) gander.Zipper
 		wantPath []gander.Node
 	}{
 		{
 			name:     "at root returns empty slice",
-			navigate: func(z gander.Zipper) gander.Zipper { return z },
+			navigate: func(z gander.Zipper, req *require.Assertions) gander.Zipper { return z },
 			wantPath: []gander.Node{},
 		},
 		{
 			name: "after Down returns slice containing root",
-			navigate: func(z gander.Zipper) gander.Zipper {
+			navigate: func(z gander.Zipper, req *require.Assertions) gander.Zipper {
 				z, ok := gander.Down(z)
 				req.True(ok)
 				return z
@@ -41,7 +39,7 @@ func TestPath(t *testing.T) {
 		},
 		{
 			name: "after Down then Down returns slice containing root and first child",
-			navigate: func(z gander.Zipper) gander.Zipper {
+			navigate: func(z gander.Zipper, req *require.Assertions) gander.Zipper {
 				z, ok := gander.Down(z)
 				req.True(ok)
 				z, ok = gander.Down(z)
@@ -49,6 +47,16 @@ func TestPath(t *testing.T) {
 				return z
 			},
 			wantPath: []gander.Node{root, innerBranch},
+		},
+		{
+			name: "at end sentinel returns empty slice",
+			navigate: func(z gander.Zipper, req *require.Assertions) gander.Zipper {
+				for !gander.IsEnd(z) {
+					z = gander.Next(z)
+				}
+				return z
+			},
+			wantPath: []gander.Node{},
 		},
 	}
 
@@ -58,9 +66,11 @@ func TestPath(t *testing.T) {
 			req := require.New(t)
 
 			z := gander.NewZipper(root)
-			z = tc.navigate(z)
+			z = tc.navigate(z, req)
 			got := gander.Path(z)
 			req.Len(got, len(tc.wantPath))
+			// ensures that it always returns an empty slice, never `nil`
+			asrt.NotNil(got)
 			for i, want := range tc.wantPath {
 				asrt.True(want.(interface {
 					Equal(gander.Node) bool
@@ -77,6 +87,23 @@ func TestLefts(t *testing.T) {
 	b := StringLeaf{Value: "b"}
 	c := StringLeaf{Value: "c"}
 	root := ListBranch{Items: []gander.Node{a, b, c}}
+
+	t.Run("at root returns nil", func(t *testing.T) {
+		asrt := assert.New(t)
+
+		z := gander.NewZipper(root)
+		asrt.Nil(gander.Lefts(z))
+	})
+
+	t.Run("at end sentinel returns nil", func(t *testing.T) {
+		asrt := assert.New(t)
+
+		z := gander.NewZipper(root)
+		for !gander.IsEnd(z) {
+			z = gander.Next(z)
+		}
+		asrt.Nil(gander.Lefts(z))
+	})
 
 	t.Run("after Down returns empty slice at leftmost child", func(t *testing.T) {
 		asrt := assert.New(t)
@@ -159,6 +186,23 @@ func TestRights(t *testing.T) {
 	b := StringLeaf{Value: "b"}
 	c := StringLeaf{Value: "c"}
 	root := ListBranch{Items: []gander.Node{a, b, c}}
+
+	t.Run("at root returns nil", func(t *testing.T) {
+		asrt := assert.New(t)
+
+		z := gander.NewZipper(root)
+		asrt.Nil(gander.Rights(z))
+	})
+
+	t.Run("at end sentinel returns nil", func(t *testing.T) {
+		asrt := assert.New(t)
+
+		z := gander.NewZipper(root)
+		for !gander.IsEnd(z) {
+			z = gander.Next(z)
+		}
+		asrt.Nil(gander.Rights(z))
+	})
 
 	t.Run("after Down returns remaining right siblings", func(t *testing.T) {
 		asrt := assert.New(t)

@@ -21,15 +21,21 @@ func Path(z Zipper) []Node {
 }
 
 // Lefts returns the left siblings of the focused node in tree order, with the
-// leftmost sibling first. It panics if z is at the root; navigate into the
+// leftmost sibling first. It returns nil if z is at the root; navigate into the
 // tree with [Down] before calling Lefts.
 func Lefts(z Zipper) []Node {
+	if z.path == nil {
+		return nil
+	}
 	return z.path.left
 }
 
 // Rights returns the right siblings of the focused node in tree order, with
-// the nearest right sibling first. It panics if z is at the root; navigate
+// the nearest right sibling first. It returns nil if z is at the root; navigate
 // into the tree with [Down] before calling Rights.
 func Rights(z Zipper) []Node {
+	if z.path == nil {
+		return nil
+	}
 	return z.path.right
 }

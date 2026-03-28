@@ -55,3 +55,7 @@ func Children(z Zipper) ([]Node, bool) {
 		return nil, false
 	}
 }
+
+func IsEnd(z Zipper) bool {
+	return z.end
+}

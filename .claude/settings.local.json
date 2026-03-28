@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(GOPATH=/tmp/gander_gopath HOME=/Users/michaelberkowitz go test:*)"
-    ]
-  }
-}
